@@ -1,0 +1,157 @@
+<html>
+<head>
+    <style>
+        img { 
+            image-rendering: optimizeSpeed;             /*                     */
+            image-rendering: -moz-crisp-edges;          /* Firefox             */
+            image-rendering: -o-crisp-edges;            /* Opera               */
+            image-rendering: -webkit-optimize-contrast; /* Chrome (and Safari) */
+            image-rendering: pixelated;                 /* Chrome as of 2019   */
+            image-rendering: optimize-contrast;         /* CSS3 Proposed       */
+            -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
+        }
+        canvas {
+            image-rendering: optimizeSpeed;             /*                     */
+            image-rendering: -moz-crisp-edges;          /* Firefox             */
+            image-rendering: -o-crisp-edges;            /* Opera               */
+            image-rendering: -webkit-optimize-contrast; /* Chrome (and Safari) */
+            image-rendering: pixelated;                 /* Chrome as of 2019   */
+            image-rendering: optimize-contrast;         /* CSS3 Proposed       */
+            -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.js" type="text/javascript"></script>
+    <script>
+        const WHITE=255
+        const BLACK=0
+        const GRAY=127
+        function set_canvas_data(name, data) {
+            var ctx = document.getElementById(name).getContext('2d')
+            ctx.putImageData(data, 0, 0)
+        }
+        function set_canvas_data_from_mat(name, mat, width, height) {
+            var data = new Uint8ClampedArray(math.count(mat) * 4);
+            var i = 0
+            var set_vals = (value, index) => {
+                data[i] = value
+                data[i+1] = value
+                data[i+2] = value
+                data[i+3] = 255
+                i+=4
+            }
+            math.forEach(mat, set_vals)
+            var image_data = new ImageData(data, width)
+            set_canvas_data(name, image_data)
+        }
+        function resize_canvases(img) {
+            var els = document.getElementsByTagName('canvas')
+            for (el of els) {
+                el.width = img.width
+                el.height = img.height
+            }
+        }
+        function disable_smoothing() {
+            var els = document.getElementsByTagName('canvas')
+            for (el of els) {
+                var ctx = el.getContext('2d')
+                ctx.imageSmoothingEnabled = false
+                ctx.mozImageSmoothingEnabled = false
+                ctx.oImageSmoothingEnabled = false
+                ctx.webkitImageSmoothingEnabled = false
+                ctx.msImageSmoothingEnabled = false
+            }
+
+        }
+        function make_gaussian(sigma, k) {
+            var columns = []
+            for (var i = 0; i < 2 * k + 1; i++) {
+                column = []
+                for (var j = 0; j < 2 * k + 1; j++) {
+                    column.push((i - k) ** 2 + (j - k) ** 2)
+                }
+                columns.push(column)
+            }
+            columns = math.divide(columns, -2 * sigma ** 2)
+
+            columns = math.exp(columns)
+
+            columns = math.multiply(columns, 1 / (2 * math.pi * sigma **2))
+
+            return columns
+        }
+        function sobel(image_data_mat, width, height) {
+            var ret = math.zeros(height, width)
+            var Y = math.matrix([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+            var X = math.matrix([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+            console.log(X)
+            console.log(Y)
+            for (var i = 0; i < width; i++) {
+                for (var j = 0; j < height; j++) {
+                    if (i == 0 || i == width -1 || j == 0 || j == height -1) {
+                        ret.set([j,i], GRAY) 
+                        continue
+                    }
+                    var vals_mat = math.subset(image_data_mat, math.index([j+1, j, j-1], [i+1, i, i-1]))
+                    var gradient_x = math.sum(math.dotMultiply(X, vals_mat))
+                    var gradient_y = math.sum(math.dotMultiply(Y, vals_mat))
+
+                    var color = GRAY
+                    const threshold = 3
+                    if (math.abs(gradient_y) > threshold * math.abs(gradient_x)) {
+                        // Horizontal?
+                        color = BLACK
+                    } else if (math.abs(gradient_x) > threshold * math.abs(gradient_y)) {
+                        // Vertical?
+                        color = WHITE
+                    }
+                    ret.set([j, i], color)
+                }
+            }
+            return ret
+        }
+        function init() {
+            var img = document.getElementById("input")
+            resize_canvases(img)
+            disable_smoothing()
+            var canvas = document.getElementById("canvas")
+            var width = canvas.width
+            var height = canvas.height
+            console.log(width, height)
+            var context = canvas.getContext('2d')
+            context.drawImage(img, 0, 0)
+            var image_data = context.getImageData(0, 0, width, height)
+            var image_data_mat = math.ones(height, width)
+            for (var i = 0; i < image_data.data.length; i += 4) {
+                var x = (i/4) % width
+                var y = math.floor((i/4)/width)
+                var red = image_data.data[i]
+                var green = image_data.data[i + 1]
+                var blue = image_data.data[i + 2]
+                var alpha = image_data.data[i + 3]
+                // https://www.dynamsoft.com/blog/insights/image-processing/image-processing-101-color-space-conversion/
+                var grayscale = (.299 * red + .587 * green + .114 * blue)
+                for (var dest = i; dest < i + 3; dest++) {
+                    image_data.data[dest] = grayscale
+                }
+                image_data_mat.set([y, x], grayscale)
+            }
+            console.log(image_data_mat)
+            set_canvas_data("grayscale", image_data)
+            var edges = sobel(image_data_mat, width, height)
+            console.log(edges)
+            set_canvas_data_from_mat("edges", edges, width, height)
+
+
+        }
+        window.onload = init
+    </script>
+</head>
+<body style="background-color: blue">
+    <img id="input" src="checkerboard.png" crossorigin="Anonymous">
+    <canvas id="grayscale"></canvas>
+    <canvas id="edges"></canvas>
+    <div>
+        <canvas id="canvas" style="display:none"></canvas>
+    </div>
+</body>
+</html>
