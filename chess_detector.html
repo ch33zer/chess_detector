@@ -20,7 +20,7 @@
             -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.js" type="text/javascript"></script>
+    <script src="math.js" type="text/javascript"></script>
     <script>
         const WHITE=255
         const BLACK=0
@@ -109,6 +109,36 @@
             }
             return ret
         }
+        const INTERSECTION_TOLERANCE = 3
+        function pick_intersections(edges_mat, width, height) {
+            var ret = math.zeros(height, width)
+            for (var i = 0; i < width; i++) {
+                for (var j = 0; j < height; j++) {
+                    if (i < INTERSECTION_TOLERANCE || i >= width - INTERSECTION_TOLERANCE || j < INTERSECTION_TOLERANCE || j >= height - INTERSECTION_TOLERANCE) {
+                        ret.set([j,i], GRAY) 
+                        continue
+                    }
+                    var vals_mat = math.subset(edges_mat, math.index(math.range(j-INTERSECTION_TOLERANCE, j+INTERSECTION_TOLERANCE), math.range(i-INTERSECTION_TOLERANCE, i+INTERSECTION_TOLERANCE)))
+                    var horizontals = 0;
+                    var verticals = 0
+                    function count_edges(val, idx) {
+                        if (val == BLACK) {
+                            horizontals++
+                        } 
+                        else if (val == WHITE) {
+                            verticals++
+                        }
+                    }
+                    math.forEach(vals_mat, count_edges)
+                    if (horizontals >= 2* INTERSECTION_TOLERANCE && verticals >= 2* INTERSECTION_TOLERANCE) {
+                        ret.set([j,i], BLACK)
+                    } else {
+                        ret.set([j,i], GRAY)
+                    }
+                }
+            }
+            return ret
+        }
         function init() {
             var img = document.getElementById("input")
             resize_canvases(img)
@@ -137,9 +167,14 @@
             }
             console.log(image_data_mat)
             set_canvas_data("grayscale", image_data)
+
             var edges = sobel(image_data_mat, width, height)
             console.log(edges)
             set_canvas_data_from_mat("edges", edges, width, height)
+            return
+            var corners = pick_intersections(edges, width, height)
+            set_canvas_data_from_mat("corners", corners, width, height)
+
 
 
         }
@@ -147,9 +182,10 @@
     </script>
 </head>
 <body style="background-color: blue">
-    <img id="input" src="checkerboard.png" crossorigin="Anonymous">
+    <img id="input" src="color.png" crossorigin="Anonymous">
     <canvas id="grayscale"></canvas>
     <canvas id="edges"></canvas>
+    <canvas id="corners"></canvas>
     <div>
         <canvas id="canvas" style="display:none"></canvas>
     </div>
