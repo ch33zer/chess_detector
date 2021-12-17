@@ -21,6 +21,7 @@
         }
     </style>
     <script src="opencv.js" type="text/javascript"></script>
+    <script src="tf.min.js" type="text/javascript"></script>
     <script>
         const WHITE=255
         const BLACK=0
@@ -102,6 +103,7 @@
                 var y = corners.data32F[i * 2 + 1]
                 var curr = {x: x, y: y}
                 cv.circle(img, curr, 5, GREEN, cv.FILLED)
+                cv.putText(img, "(" + x + "," + y + ")", {x:x-160, y:y}, cv.FONT_HERSHEY_SIMPLEX, 1, BLUE)
                 if (prev !== null) {
                     cv.line(img, prev, curr, RED)
                 }
@@ -220,6 +222,39 @@
             }
             console.log(out)
             return cv.matFromArray(out.length, 2, cv.CV_32F, out.flat())
+        }
+        async function classify_pieces(corners, full) {
+            var names=['bb', 'bk', 'bn', 'bp', 'bq', 'br', 'nothing', 'wb', 'wk', 'wn', 'wp', 'wq', 'wr']
+            var full_rgb = new cv.Mat()
+            var size=new cv.Size(64,64)
+            cv.cvtColor(full, full_rgb, cv.COLOR_RGBA2RGB, 0)
+
+            for (var i = 0; i < corners.rows - (TARGET_BOXES + 1); i++) {
+
+                if (i % (TARGET_BOXES + 1) == TARGET_BOXES) {
+                    continue
+                }
+                var tl_x = corners.data32F[i*2]
+                var tl_y = corners.data32F[i*2 + 1]
+                var tr_x = corners.data32F[(i+1)*2]
+                var j = i + TARGET_BOXES + 1
+                var bl_y = corners.data32F[j*2 + 1]
+                var width = tr_x - tl_x
+                var height = bl_y - tl_y
+                var rect = new cv.Rect(tl_x, tl_y, width, height)
+                var img = full_rgb.roi(rect)
+                cv.resize(img, img, size, 0, 0, cv.INTER_AREA)
+                var float_img = new cv.Mat(img.rows, img.cols, cv.CV_32FC3)
+                for (var j = 0; j < img.data.length; j++) {
+                    float_img.data32F[j] = img.data[j] / 255.0
+                }
+                var tensor = tf.tensor(float_img.data32F, [1,64,64,3], 'float32')
+                var res = model.predict(tensor, {batchSize: 1, verbose: true})
+                const {values, indices} = tf.topk(res, 3, true);
+                const valuesArr = await values.data();
+                const indicesArr = await indices.data();
+                console.log(i, valuesArr[0], indicesArr[0], names[indicesArr[0]])
+            }
         }
 
         function most_likely_bounding_box(horiz, vert, /*TODO*/ width, height) {
@@ -348,10 +383,16 @@
             cv.cvtColor(grayscale, corner_drawing_mine, cv.COLOR_GRAY2RGBA, 0)
             drawCorners(corner_drawing_mine, corners_mine, corners_mine.rows != 0)
             cv.imshow('corners_mine', corner_drawing_mine)
+            classify_pieces(corners_mine, full)
 
             console.log("done searching")
         }
-        cv.then((res) => {cv = res; init()})
+        async function wait_until_loaded() {
+            cv = await cv
+            model = await model
+        }
+        var model = tf.loadLayersModel('piece_model/modeljs/model.json');
+        wait_until_loaded().then(init)
     </script>
 </head>
 <body style="background-color: blue">

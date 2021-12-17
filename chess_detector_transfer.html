@@ -1,0 +1,430 @@
+<html>
+<head>
+    <style>
+        img { 
+            image-rendering: optimizeSpeed;             /*                     */
+            image-rendering: -moz-crisp-edges;          /* Firefox             */
+            image-rendering: -o-crisp-edges;            /* Opera               */
+            image-rendering: -webkit-optimize-contrast; /* Chrome (and Safari) */
+            image-rendering: pixelated;                 /* Chrome as of 2019   */
+            image-rendering: optimize-contrast;         /* CSS3 Proposed       */
+            -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
+        }
+        canvas {
+            image-rendering: optimizeSpeed;             /*                     */
+            image-rendering: -moz-crisp-edges;          /* Firefox             */
+            image-rendering: -o-crisp-edges;            /* Opera               */
+            image-rendering: -webkit-optimize-contrast; /* Chrome (and Safari) */
+            image-rendering: pixelated;                 /* Chrome as of 2019   */
+            image-rendering: optimize-contrast;         /* CSS3 Proposed       */
+            -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
+        }
+        h3 {
+            color: white
+        }
+        body {
+            background: blue
+        }
+    </style>
+    <script src="opencv.js" type="text/javascript"></script>
+    <script src="tf.min.js" type="text/javascript"></script>
+    <!--<script src="mobilenet@1.0.0.js"></script>-->
+    <script>
+        const WHITE=255
+        const BLACK=0
+        const GRAY=127
+        function set_canvas_data(name, data) {
+            var ctx = document.getElementById(name).getContext('2d')
+            ctx.putImageData(data, 0, 0)
+        }
+        function set_canvas_data_from_mat(name, mat, width, height) {
+            var data = new Uint8ClampedArray(math.count(mat) * 4);
+            var i = 0
+            var set_vals = (value, index) => {
+                data[i] = value
+                data[i+1] = value
+                data[i+2] = value
+                data[i+3] = 255
+                i+=4
+            }
+            math.forEach(mat, set_vals)
+            var image_data = new ImageData(data, width)
+            set_canvas_data(name, image_data)
+        }
+        function resize_canvases(img) {
+            var els = document.getElementsByTagName('canvas')
+            for (el of els) {
+                el.width = img.width
+                el.height = img.height
+            }
+        }
+        function disable_smoothing() {
+            var els = document.getElementsByTagName('canvas')
+            for (el of els) {
+                var ctx = el.getContext('2d')
+                ctx.imageSmoothingEnabled = false
+                ctx.mozImageSmoothingEnabled = false
+                ctx.oImageSmoothingEnabled = false
+                ctx.webkitImageSmoothingEnabled = false
+                ctx.msImageSmoothingEnabled = false
+            }
+        }
+        function drawLines(full, lines_array, canvas_name, width, height, colors = [255, 0, 0, 255]) {
+            var offset = Math.max(height, width)
+            var dst = new cv.Mat()
+            cv.cvtColor(full, dst, cv.COLOR_RGBA2RGB, 0)
+            if (!(lines_array instanceof Array)) {
+                lines_array = [lines_array]
+            } 
+
+            for (var line_i = 0; line_i < lines_array.length; ++line_i) {
+                var lines = lines_array[line_i]
+                let color
+                if (colors[0] instanceof Array) {
+                    color = colors[line_i % colors.length]
+                } else {
+                    color = colors
+                }
+                for (var i = 0; i < lines.rows; ++i) {
+                    var rho = lines.data32F[i * 2]
+                    var theta = lines.data32F[i * 2 + 1]
+                    var a = Math.cos(theta)
+                    var b = Math.sin(theta)
+                    var x0 = a * rho
+                    var y0 = b * rho
+                    var random_offset = Math.random() * Math.min(width, height)
+                    var startPoint = {x: x0 - offset * b, y: y0 + offset * a}
+                    var endPoint = {x: x0 + offset * b, y: y0 - offset * a}
+                    cv.line(dst, startPoint, endPoint, color)
+                    cv.putText(dst, "(" + i + "," + rho + ")", {x:x0 + random_offset * b, y:y0+30 + random_offset * a}, cv.FONT_HERSHEY_SIMPLEX, 1, color)
+                }
+            }
+            cv.imshow(canvas_name, dst)
+            dst.delete()
+        }
+
+        function drawCorners(img, corners, was_found) {
+            if (!was_found) {
+                return
+            }
+            var prev = null
+            for (var i = 0; i < corners.rows; ++i) {
+                var x = corners.data32F[i * 2]
+                var y = corners.data32F[i * 2 + 1]
+                var curr = {x: x, y: y}
+                cv.circle(img, curr, 5, GREEN, cv.FILLED)
+                cv.putText(img, "(" + x + "," + y + ")", {x:x-160, y:y}, cv.FONT_HERSHEY_SIMPLEX, 1, BLUE)
+                if (prev !== null) {
+                    cv.line(img, prev, curr, RED)
+                }
+                prev = curr
+            }
+        }
+
+        const ANGLE_THRESH = Math.PI/180
+        function choose_lines_near(lines, ang, thresh) {
+            var ret = []
+            thresh = thresh || ANGLE_THRESH
+            for (var i = 0; i < lines.rows; ++i) {
+                var rho = lines.data32F[i * 2]
+                var theta = lines.data32F[i*2 + 1]
+                if (ang + thresh >= theta && ang - thresh <= theta) {
+                    ret.push([rho, theta])
+                }
+            }
+            ret.sort((first, second) => first[0] - second[0])
+            return cv.matFromArray(ret.length, 2, cv.CV_32F, ret.flat())
+        }
+        const BOX_TOLERANCE = 3;
+        function has_matching_bounds(lines, start_i, box_width, current_boxes, target_boxes) {
+            if (current_boxes == target_boxes) {
+                return true
+            }
+            var start_rho = lines.data32F[start_i*2]
+            for (var l = start_i + 1; l < lines.rows; ++l) {
+                var l_rho = lines.data32F[l * 2]
+                var found_box_size = l_rho - start_rho
+                if (found_box_size - BOX_TOLERANCE <= box_width && found_box_size + BOX_TOLERANCE >= box_width) {
+                    return has_matching_bounds(lines, l, box_width, current_boxes + 1, target_boxes)
+                }
+            }
+            return false
+        }
+        var DEBUG = false
+        const TARGET_BOXES = 8
+        const MIN_BOX_SIZE = 30
+        function make_delta_map(lines) {
+            var ret = new Map()
+            for (var i = 0; i < lines.rows; ++i) {
+                var i_rho = lines.data32F[i * 2]
+                var i_theta = lines.data32F[i*2 + 1]
+                for (var j = i+1; j < lines.rows; ++j) {
+                    var j_rho = lines.data32F[j * 2]
+                    var j_theta = lines.data32F[j*2 + 1]
+                    var diff = j_rho - i_rho
+                    if (diff < MIN_BOX_SIZE - BOX_TOLERANCE) {
+                        continue
+                    }
+                    if (!ret.has(diff)) {
+                        ret.set(diff, new Map())
+                    }
+                    ret.get(diff).set(i, j)
+                }
+            }
+            return ret
+        }
+        function check_spacing(delta_map, target_spacing, from, found_matches, target_matches, ctx) {
+            if (found_matches > 3) {
+                console.log(...arguments)
+            }
+            if (found_matches == target_matches -1) {
+                return [from]
+            }
+            for (var i = -1; i < BOX_TOLERANCE * 2; i++) {
+                var box_size = target_spacing + (i >= BOX_TOLERANCE ? -1 : 1) * (i % BOX_TOLERANCE + 1)
+                var dist_map = delta_map.get(box_size)
+                if (dist_map === undefined) {
+                    continue
+                }
+                var to = dist_map.get(from)
+                if (to === undefined) {
+                    continue
+                }
+                var rest = check_spacing(delta_map, target_spacing, to, found_matches + 1, target_matches, Array.prototype.concat(ctx, [[from, to]]))
+                if (rest.length > 0) {
+                    rest.push(from)
+                    return rest
+                }
+            }
+            return []
+        }
+        function* find_equal_spacings(delta_map) {
+            for (const [delta, dist_map] of delta_map) {
+                if (delta < MIN_BOX_SIZE - BOX_TOLERANCE) {
+                    continue
+                }
+                for (const [from, to] of dist_map) {
+                    var idxes = check_spacing(delta_map, delta, from, 0, TARGET_BOXES + 1, [])
+                    if (idxes.length > 0) {
+                        idxes.reverse()
+                        console.log("Found", idxes)
+                        yield idxes
+                    }
+                }
+            }
+        }
+        function* most_likely_bounding_box_new(horiz, vert, full) {
+            var delta_map_vert = make_delta_map(vert)
+            var delta_map_horiz = make_delta_map(horiz)
+            var all_vert_bounds = Array.from(find_equal_spacings(delta_map_vert))
+            var all_horiz_bounds = Array.from(find_equal_spacings(delta_map_horiz))
+            for (var vert_bounds of all_vert_bounds) {
+                for (var horiz_bounds of all_horiz_bounds) {
+                    var out = []
+                    for (horiz_idx of horiz_bounds) {
+                        var horiz_rho = horiz.data32F[horiz_idx * 2]
+                        var horiz_theta = horiz.data32F[horiz_idx * 2 + 1]
+                        for (vert_idx of vert_bounds) {
+                            var vert_rho = vert.data32F[vert_idx * 2]
+                            var vert_theta = vert.data32F[vert_idx * 2 + 1]
+                            var intersection_y = horiz_rho
+                            var intersection_x = vert_rho
+                            //console.log(horiz_idx, horiz_rho, intersection_y, vert_idx, vert_rho, intersection_x)
+                            out.push([intersection_x, intersection_y])
+                        }
+                    }
+                    console.log(out);
+                    yield cv.matFromArray(out.length, 2, cv.CV_32F, out.flat())
+                }
+            }
+        }
+        const SENSITIVITY=.9
+        function is_likely_empty(img) {
+            var color_hist = new Map();
+            for (var i = 0; i < img.rows; i++) {
+                for (var j = 0; j < img.cols; j++) {
+                    let pixel = img.ucharPtr(i, j);
+                    let R = Math.round(pixel[0] / 51);
+                    let G = Math.round(pixel[1] / 51);
+                    let B = Math.round(pixel[2] / 51);
+                    let key = `${R},${G},${B}`
+                    if (!color_hist.has(key)) {
+                        color_hist.set(key, 0)
+                    }
+                    color_hist.set(key, color_hist.get(key) + 1)
+                }
+            }
+            for (const [key, value] of color_hist) {
+                if (value >= (SENSITIVITY * img.rows * img.cols)) {
+                    return true
+                }
+            }
+            return false
+        }
+        async function classify_pieces(corners, full) {
+            var fen = ""
+            var empty_counter = 0
+            var names=['bb', 'bk', 'bn', 'bp', 'bq', 'br', 'nothing', 'wb', 'wk', 'wn', 'wp', 'wq', 'wr']
+            var mapping={
+                'bb': 'b',
+                'bk': 'k',
+                'bn': 'n',
+                'bp': 'p',
+                'bq': 'q',
+                'br': 'r',
+                'wb': 'B',
+                'wk': 'K',
+                'wn': 'N',
+                'wp': 'P',
+                'wq': 'Q',
+                'wr': 'R',
+            }
+            var full_rgb = new cv.Mat()
+            var size=new cv.Size(96,96)
+            cv.cvtColor(full, full_rgb, cv.COLOR_RGBA2RGB, 0)
+
+            for (var i = 0; i < corners.rows - (TARGET_BOXES + 1); i++) {
+                if (i % (TARGET_BOXES + 1) == TARGET_BOXES) {
+                    if (empty_counter != 0) {
+                        fen += `${empty_counter}`
+                        empty_counter = 0
+                    }
+                    if (i != corners.rows - (TARGET_BOXES + 2)) {
+                        fen += "/"
+                    }
+                    continue
+                }
+                var tl_x = corners.data32F[i*2]
+                var tl_y = corners.data32F[i*2 + 1]
+                var tr_x = corners.data32F[(i+1)*2]
+                var j = i + TARGET_BOXES + 1
+                var bl_y = corners.data32F[j*2 + 1]
+                var width = tr_x - tl_x
+                var height = bl_y - tl_y
+                var rect = new cv.Rect(tl_x, tl_y, width, height)
+                var img = full_rgb.roi(rect)
+                if (is_likely_empty(img)) {
+                    empty_counter += 1
+                    continue
+                }
+                cv.resize(img, img, size, 0, 0, cv.INTER_AREA)
+                var float_img = new cv.Mat(img.rows, img.cols, cv.CV_32FC3)
+                for (var j = 0; j < img.data.length; j++) {
+                    float_img.data32F[j] = (img.data[j] / 127.5) - 1.0
+                }
+                var tensor = tf.tensor(float_img.data32F, [1,96,96,3], 'float32')
+                var res = model.predict(tensor, {batchSize: 1, verbose: true})
+                const {values, indices} = tf.topk(res, 3, true);
+                const valuesArr = await values.data();
+                const indicesArr = await indices.data();
+                console.log(i, valuesArr[0], indicesArr[0], names[indicesArr[0]])
+                console.log(i, valuesArr[1], indicesArr[1], names[indicesArr[1]])
+                //console.log(i, valuesArr[2], indicesArr[2], names[indicesArr[2]])
+                cv.putText(full_rgb, names[indicesArr[0]] + " " +valuesArr[0].toPrecision(2), {x:tl_x + width/2 -40, y:tl_y + height / 2}, cv.FONT_HERSHEY_SIMPLEX, 1, GREEN)
+                //cv.putText(full_rgb, names[indicesArr[1]] + " " +valuesArr[1].toPrecision(2), {x:tl_x + width/2-20, y:tl_y + height / 2 +50}, cv.FONT_HERSHEY_SIMPLEX, 1, BLUE)
+                //cv.putText(full_rgb, names[indicesArr[2]] + " " +valuesArr[2].toPrecision(2), {x:tl_x + width/2-20, y:tl_y + height / 2 +100}, cv.FONT_HERSHEY_SIMPLEX, 1, BLUE)
+                var most_likely_classification = names[indicesArr[0]]
+                if (most_likely_classification == "nothing") {
+                    empty_counter += 1
+                } else {
+                    if (empty_counter != 0) {
+                        fen += `${empty_counter}`
+                        empty_counter = 0
+                    }
+                    fen += mapping[most_likely_classification]
+                }
+            }
+            cv.imshow('classifications', full_rgb)
+            if (corners.rows == 0) {
+                return ""
+            }
+            fen += " w KQkq - 0 1"
+            console.log(fen);
+            return fen
+        }
+
+        async function process_corners(full, corners_list) {
+            console.log(full)
+            for (var corners_mine of corners_list) {
+                var corner_drawing_mine = new cv.Mat()
+                corner_drawing_mine = full.clone()
+                drawCorners(corner_drawing_mine, corners_mine, corners_mine.rows != 0)
+                cv.imshow('corners_mine', corner_drawing_mine)
+                console.log(corners_mine);
+                if (corners_list.length == 1) {
+                    classify_pieces(corners_mine, full).then(console.log).catch(console.error)
+                    return
+                }
+                var _resolve;
+                var clicked = new Promise((resolve) => _resolve = resolve);
+                classify_pieces(corners_mine, full).then(console.log).catch(console.error)
+                document.getElementById("next").style.display = "inline-block"
+                document.getElementById("next").onclick = () => _resolve(true)
+                await clicked
+            }
+
+        }
+
+        const [RED, GREEN, BLUE] = [[255,0,0,255], [0,255,0,255], [0,0,255,255]]
+        function init() {
+            var img = document.getElementById("input")
+            resize_canvases(img)
+            disable_smoothing()
+            var width = img.width
+            var height = img.height
+            console.log(width, height)
+            var full = cv.imread(img)
+            var grayscale = new cv.Mat()
+            cv.cvtColor(full, grayscale, cv.COLOR_RGBA2GRAY, 0)
+            cv.imshow('grayscale', grayscale)
+            var canny = new cv.Mat()
+            cv.Canny(grayscale, canny, 50, 150, 3, true)
+            cv.imshow('edges', canny)
+            var lines = new cv.Mat()
+            cv.HoughLines(canny, lines, 1, Math.PI / 90, 7 * (MIN_BOX_SIZE - BOX_TOLERANCE))
+            drawLines(full, lines, 'lines', width, height)
+            var horiz = choose_lines_near(lines, Math.PI / 2)
+            var vert = choose_lines_near(lines, 0)
+            drawLines(full, [vert, horiz], 'filtered_lines', width, height, [RED, GREEN])
+            var corners_mine_list = Array.from(most_likely_bounding_box_new(horiz, vert, full))
+            process_corners(full, corners_mine_list)
+
+
+            console.log("done init")
+        }
+        async function wait_until_loaded() {
+            cv = await cv
+            model = await model
+            //mobilenet = await mobilenet.load()
+        }
+        var model = tf.loadLayersModel('piece_model/modeljs/model.json');
+        wait_until_loaded().then(init)
+    </script>
+</head>
+<body>
+    <h3>Input</h3>
+    <img id="input" src="testdata/championship.png" crossorigin="Anonymous">
+    <br />
+    <h3>Grayscale</h3>
+    <canvas id="grayscale"></canvas>
+    <br />
+    <h3>Edges</h3>
+    <canvas id="edges"></canvas>
+    <br />
+    <h3>Lines</h3>
+    <canvas id="lines"></canvas>
+    <br />
+    <h3>Filtered lines</h3>
+    <canvas id="filtered_lines"></canvas>
+    <br />
+    <h3>Corners mines</h3>
+    <canvas id="corners_mine"></canvas>
+    <br />
+    <button id="next" style="display: none;">Next</button>
+    <br />
+    <h3>Classifications</h3>
+    <canvas id="classifications"></canvas>
+    <br />
+    <canvas id="debug" style="display: none;"></canvas>
+</body>
+</html>

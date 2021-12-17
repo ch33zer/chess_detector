@@ -1,3 +1,5 @@
-piece_files/
 piece_model/venv/*
 .DS_Store
+ephemeral/
+testdata/
+piece_samples/
