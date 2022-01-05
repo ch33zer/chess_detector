@@ -11,6 +11,7 @@ WHITE="white"
 DIR_OPTIONS=["NorthWest","North","NorthEast","West","East","SouthWest","South","SouthEast"]
 TEXT_OPTIONS=["a","b","c","d","e","f","g","h","A","B","C","D","E","F","G","H","1","2","3","4","5","6","7","8","1","2","3","4","5","6","7","8"]
 FONTS=["AvantGarde","Bookman","Courier","Helvetica","NewCenturySchlbk","Palatino","Symbol","Times"]
+BRIGHTNESS_DELTA=25
 
 ONLY_PIECE=""
 
@@ -47,39 +48,39 @@ for root, dirs, files in os.walk('../piece_files/'):
         line_x = random.randrange(97)
         line_y = random.randrange(97)
         draw_color=f"'rgb({b},{r},{r})'"
-        gamma_func=lambda:random.uniform(.5,1.5)
-        darker_gamma=random.uniform(.5,1)
-        lighter_gamma=random.uniform(1,1.5)
+        brightness_func=lambda:random.randint(100-BRIGHTNESS_DELTA,100+BRIGHTNESS_DELTA)
+        darker=random.randint(100-BRIGHTNESS_DELTA,100)
+        lighter=random.randint(100,100+BRIGHTNESS_DELTA)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_vanilla_{file}")
         subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 {output_file}", capture_output=True, check=True, shell=True)
-        output_file = os.path.join(output_dir, f"{collection}_{i}_lightgamma_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {lighter_gamma} {output_file}", capture_output=True, check=True, shell=True)
-        output_file = os.path.join(output_dir, f"{collection}_{i}_darkgamma_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {darker_gamma} {output_file}", capture_output=True, check=True, shell=True)
+        output_file = os.path.join(output_dir, f"{collection}_{i}_light_{file}")
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {lighter} {output_file}", capture_output=True, check=True, shell=True)
+        output_file = os.path.join(output_dir, f"{collection}_{i}_dark_{file}")
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {darker} {output_file}", capture_output=True, check=True, shell=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_straight_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -affine {scale},0,0,{scale},{offset_x},{offset_y} -transform -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -affine {scale},0,0,{scale},{offset_x},{offset_y} -transform -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         if basename_no_extn != 'nothing':
           output_file = os.path.join(output_dir, f"{collection}_{i}_rot_{file}")
-          subprocess.run(f"gm convert {path} -fill {color} -background {color} -rotate {rotation} -affine {scale},0,0,{scale},{offset_x},{offset_y} -transform -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+          subprocess.run(f"gm convert {path} -fill {color} -background {color} -rotate {rotation} -affine {scale},0,0,{scale},{offset_x},{offset_y} -transform -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
           output_file = os.path.join(output_dir, f"{collection}_{i}_shear_{file}")
-          subprocess.run(f"gm convert {path} -fill {color} -background {color} -shear {shear}x{shear} -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+          subprocess.run(f"gm convert {path} -fill {color} -background {color} -shear {shear}x{shear} -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_text_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -font {font} -draw \"gravity {text_dir} Scale {text_scale},{text_scale} text {draw_x1},{draw_y1} '{text_content}'\" -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -font {font} -draw \"gravity {text_dir} Scale {text_scale},{text_scale} text {draw_x1},{draw_y1} '{text_content}'\" -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_textwarped_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -font {font} -draw \"gravity {text_dir} Rotate {text_rot} Scale {text_scale},{text_scale} text {draw_x2},{draw_y2} '{text_content}'\" -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -font {font} -draw \"gravity {text_dir} Rotate {text_rot} Scale {text_scale},{text_scale} text {draw_x2},{draw_y2} '{text_content}'\" -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_line_vert_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -draw 'line {line_x},0,{line_x},96' -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -draw 'line {line_x},0,{line_x},96' -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_line_horiz_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -draw 'line 0,{line_y},96,{line_y}' -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -fill {draw_color} -draw 'line 0,{line_y},96,{line_y}' -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         output_file = os.path.join(output_dir, f"{collection}_{i}_noisy_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 +noise Laplacian -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 +noise Laplacian -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         color=WHITE
         output_file = os.path.join(output_dir, f"{collection}_{i}_white_background_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
         color=BLACK
         output_file = os.path.join(output_dir, f"{collection}_{i}_black_background_{file}")
-        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -gamma {gamma_func} {output_file}", capture_output=True, check=True, shell=True)
+        subprocess.run(f"gm convert {path} -fill {color} -background {color} -crop 96x96 -resize '96x96!' -extent 0x0 -modulate {brightness_func()} {output_file}", capture_output=True, check=True, shell=True)
 
 """
 NUM_ITER=3
