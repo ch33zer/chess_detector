@@ -148,22 +148,7 @@
             }
             return cv.matFromArray(ret.length, 2, cv.CV_32F, ret.flat())
         }
-        const BOX_TOLERANCE = 4;
-        function has_matching_bounds(lines, start_i, box_width, current_boxes, target_boxes) {
-            if (current_boxes == target_boxes) {
-                return true
-            }
-            var start_rho = lines.data32F[start_i*2]
-            for (var l = start_i + 1; l < lines.rows; ++l) {
-                var l_rho = lines.data32F[l * 2]
-                var found_box_size = l_rho - start_rho
-                if (found_box_size - BOX_TOLERANCE <= box_width && found_box_size + BOX_TOLERANCE >= box_width) {
-                    return has_matching_bounds(lines, l, box_width, current_boxes + 1, target_boxes)
-                }
-            }
-            return false
-        }
-        var DEBUG = false
+        const BOX_TOLERANCE = 4; // Pixels
         const TARGET_BOXES = 8
         const MIN_BOX_SIZE = 30
         function make_delta_map(lines) {
@@ -227,7 +212,7 @@
                 }
             }
         }
-        function* most_likely_bounding_box_new(horiz, vert) {
+        function* most_likely_bounding_box(horiz, vert) {
             var delta_map_vert = make_delta_map(vert)
             var delta_map_horiz = make_delta_map(horiz)
             var all_vert_bounds = Array.from(find_equal_spacings(delta_map_vert))
@@ -249,7 +234,6 @@
                             var vert_theta = vert.data32F[vert_idx * 2 + 1]
                             var intersection_y = horiz_rho
                             var intersection_x = vert_rho
-                            //console.log(horiz_idx, horiz_rho, intersection_y, vert_idx, vert_rho, intersection_x)
                             out.push([intersection_x, intersection_y])
                         }
                     }
@@ -280,10 +264,6 @@
                 }
             }
             return false
-        }
-        function guess_fen_suffix(corners, full, board, current_fen) {
-
-            return " w KQkq - 0 1"
         }
         function predictions_to_fen_stem(predictions) {
             var class2fen={
@@ -391,208 +371,6 @@
             }
             cv.imshow('classifications', display)
             return predictions
-        }
-        function i2coord(matrix, idx) {
-            return [Math.floor(idx/matrix.rows), idx % matrix.matrix.cols]
-        }
-        function i2boardindex(predictions, i) {
-            return [Math.floor(i / predictions[0].length), i % predictions[0].length]
-        }
-        function get_mask_contents(mask) {
-            if (mask.type() != cv.CV_8UC1) {
-                return [0,0]
-            }
-            var ret = [0,0]
-            for (var i = 0; i < mask.rows; i++) {
-                for (var j = 0; j < mask.cols; j++) {
-                    var val = mask.ucharAt(i,j)
-                    if (val != 0 && val != 255) {
-                        console.log("invalid value?", val)
-                        continue
-                    }
-                    ret[Math.floor(val/255)]++
-                }
-            }
-            return ret
-        }
-        /*
-        function seems_to_match_pattern(thresh, board_tl_x, board_tl_y, idx, color, predictions) {
-            if (idx == predictions.length * predictions[0].length) {
-                return [0, 0]
-            }
-            var predictions_idx = i2boardindex(predictions, idx);
-            function next() {
-                var next_color = predictions_idx[1] == (predictions[0].length-1) ? color: {light: "dark", dark: "light"}[color]
-                return seems_to_match_pattern(thresh, board_tl_x, board_tl_y, idx + 1, next_color, predictions)
-            };
-            var prediction = predictions[predictions_idx[0]][predictions_idx[1]];
-            if (prediction.classification != "nothing") {
-                return next();
-            }
-            var rect = prediction.rect
-            var translated_rect = {x: rect.x - board_tl_x, y: rect.y - board_tl_y, width: rect.width, height: rect.height}
-            var square = thresh.roi(translated_rect)
-            var vals = new Map([[0, 0], [255, 0]]);
-            //var black = []
-            //var white = []
-            for (var i = 0; i < square.rows; i++) {
-                for (var j = 0; j < square.cols; j++) {
-                    var val = square.ucharAt(i, j)
-                    if (val != 0 && val != 255) {
-                        console.log("Invalid value?", val)
-                        continue
-                    }
-                    vals.set(val, vals.get(val) + 1)
-                }
-            }
-            if (idx == 0) {
-                imshow("debug", square)
-            }
-            var matches = (vals.get(0) > vals.get(255)) ^ (color == "light");
-            console.log(idx, predictions_idx, color, prediction.classification, translated_rect, square, vals, matches)
-            var rest = next();
-            rest[1]++;
-            if (matches) {
-                rest[0]++
-            }
-            return rest;
-
-        }
-        function imshow(canvasSource, mat) {
-            var canvas = null;
-            if (typeof canvasSource === 'string') {
-                canvas = document.getElementById(canvasSource);
-            } else {
-                canvas = canvasSource;
-            }
-            if (!(canvas instanceof HTMLCanvasElement)) {
-                throw new Error('Please input the valid canvas element or id.');
-                return;
-            }
-            if (!(mat instanceof cv.Mat)) {
-                throw new Error('Please input the valid cv.Mat instance.');
-                return;
-            }
-
-            // convert the mat type to cv.CV_8U
-            var img = new cv.Mat();
-            var depth = mat.type()%8;
-            var scale = depth <= cv.CV_8S? 1.0 : (depth <= cv.CV_32S? 1.0/256.0 : 255.0);
-            var shift = (depth === cv.CV_8S || depth === cv.CV_16S)? 128.0 : 0.0;
-            mat.convertTo(img, cv.CV_8U, scale, shift);
-
-            // convert the img type to cv.CV_8UC4
-            switch (img.type()) {
-                case cv.CV_8UC1:
-                cv.cvtColor(img, img, cv.COLOR_GRAY2RGBA);
-                break;
-                case cv.CV_8UC3:
-                cv.cvtColor(img, img, cv.COLOR_RGB2RGBA);
-                break;
-                case cv.CV_8UC4:
-                break;
-                default:
-                throw new Error('Bad number of channels (Source image must have 1, 3 or 4 channels)');
-                return;
-            }
-            var imgData = new ImageData(new Uint8ClampedArray(img.data), img.cols, img.rows);
-            var ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            canvas.width = imgData.width;
-            canvas.height = imgData.height;
-            ctx.putImageData(imgData, 0, 0);
-            img.delete();
-        };
-        */
-
-        var BLUR_ROUNDS = 5;
-        function find_backgrounds(full, predictions) {
-            var canonical_rect = predictions[0][0].rect
-            var backgrounds = [
-                // light
-                new cv.Mat(canonical_rect.height, canonical_rect.width, cv.CV_32SC4, new cv.Scalar(0,0,0,0)),
-                // dark
-                new cv.Mat(canonical_rect.height, canonical_rect.width, cv.CV_32SC4, new cv.Scalar(0,0,0,0)),
-            ]
-            var bg_counts=[0,0]
-            var no_mask = new cv.Mat()
-            var divisor = new cv.Mat(canonical_rect.height, canonical_rect.width, cv.CV_32SC4, new cv.Scalar(1,1,1,1));
-            for (var prediction_row of predictions) {
-                for (var prediction of prediction_row) {
-                    if (prediction.classification != "nothing") {
-                        continue
-                    }
-                    var acc;
-                    if (prediction.board_color == "light") {
-                        acc = backgrounds[0]
-                        bg_counts[0]++
-                    } else {
-                        acc = backgrounds[1]
-                        bg_counts[1]++
-                    }
-                    var matching_rect = {x: prediction.rect.x, y: prediction.rect.y, width: canonical_rect.width, height: canonical_rect.height}
-                    var square_roi = full.roi(matching_rect)
-                    cv.add(acc, square_roi, acc, no_mask, cv.CV_32SC4)
-                    /*
-                    cv.imshow("debug", square_roi)
-                    var avg = new cv.Mat();
-                    if (prediction.board_color == "light") {
-                        cv.divide(acc, divisor, avg, 1.0/bg_counts[0], cv.CV_8UC4)
-                    } else {
-                        cv.divide(acc, divisor, avg, 1.0/bg_counts[1], cv.CV_8UC4)
-                    }
-                    cv.imshow("debug2", avg)
-                    var a = ""
-                    */
-                }
-            }
-            var out = [new cv.Mat(), new cv.Mat()]
-            cv.divide(backgrounds[0], divisor, out[0], 1.0/bg_counts[0], cv.CV_8UC4)
-            cv.divide(backgrounds[1], divisor, out[1], 1.0/bg_counts[1], cv.CV_8UC4)
-            for (var i = 0; i < BLUR_ROUNDS; i++) {
-                cv.GaussianBlur(out[0], out[0], {width: BLUR_SIZE, height: BLUR_SIZE}, 0)
-                cv.GaussianBlur(out[1], out[1], {width: BLUR_SIZE, height: BLUR_SIZE}, 0)
-            }
-            no_mask.delete()
-            divisor.delete()
-            return out
-        }
-        var HIGHLIGHT_SENSITIVITY = .75
-        function find_highlights(backgrounds, full, predictions) {
-            var canonical_rect = predictions[0][0].rect
-            var no_mask = new cv.Mat()
-            for (var prediction_row of predictions) {
-                for (var prediction of prediction_row) {
-                    console.log(prediction.classification)
-                    var bg;
-                    if (prediction.board_color == "light") {
-                        bg = backgrounds[0]
-                    } else {
-                        bg = backgrounds[1]
-                    }
-                    var matching_rect = {x: prediction.rect.x, y: prediction.rect.y, width: canonical_rect.width, height: canonical_rect.height}
-                    var square_roi = full.roi(matching_rect)
-                    var delta_float_4channel = new cv.Mat();
-                    cv.subtract(square_roi, bg, delta_float_4channel, no_mask, cv.CV_32SC4)
-                    var delta_abs_4channel = new cv.Mat()
-                    cv.convertScaleAbs(delta_float_4channel, delta_abs_4channel)
-                    var delta_3channel = new cv.Mat()
-                    cv.cvtColor(delta_abs_4channel, delta_3channel, cv.COLOR_RGBA2RGB, 0)
-                    var grayscale = new cv.Mat()
-                    cv.cvtColor(delta_3channel, grayscale, cv.COLOR_RGB2GRAY, 0)
-                    var threshold = new cv.Mat()
-                    cv.threshold(grayscale, threshold, 0, 255, cv.THRESH_BINARY_INV+cv.THRESH_OTSU)
-
-                    var mask_contents = get_mask_contents(threshold)
-                    if (prediction.classification == "nothing" && mask_contents[0] / (mask_contents[0] + mask_contents[1]) > HIGHLIGHT_SENSITIVITY) {
-                        console.log("highlight?", mask_contents)
-                    }
-
-                    cv.imshow("debug", threshold)
-                    var a =""
-                }
-            }
-            no_mask.delete()
         }
         function dominant_colors_from_board(full, rect, k, min_fraction) {
             var square_roi = full.roi(rect)
@@ -719,7 +497,7 @@
                         var dist = color_dist(highlighted_empty_color, 0, dominant_colors, k * 3)
                         if (dist < min) {
                             min = dist
-                            coord = {x: j, y:i}
+                            coord = {y:i, x: j}
                         }
                     }
                 }
@@ -729,8 +507,16 @@
             }
             return []
         }
-        var BLUR_SIZE=11
-        var BOARD_COLOR_SENSITIVITY = .75
+        generate_fen_suffix(predictions, board, highlights) {
+            var to_move
+            for (let highlight of highlights) {
+                var pred = predictions[highlight.y][highlight.x]
+                if (pred.classification != "nothing") {
+
+                }
+
+            }
+        }
         async function classify_and_display(corners, full, grayscale, board) {
             var predictions = await classify_pieces(corners, full, board).catch(console.error)
             console.log(predictions)
@@ -744,45 +530,13 @@
             var br_rect = predictions[predictions.length - 1][predictions[0].length -1].rect
             var entire_board = {x: tl_rect.x, y: tl_rect.y, width: br_rect.x + br_rect.width - tl_rect.x, height: br_rect.y + br_rect.height - tl_rect.y}
             var board_only = grayscale.roi(entire_board)
-            /*
-            var blurred = new cv.Mat()
-            cv.GaussianBlur(board_only, blurred, {width: BLUR_SIZE, height: BLUR_SIZE}, 0)
-            var threshold = new cv.Mat()
-            cv.threshold(blurred, threshold, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
-            var matching_cnt = seems_to_match_pattern(threshold, tl_rect.x, tl_rect.y, 0, "light", predictions)
-            var matches = matching_cnt[0] / matching_cnt[1] > BOARD_COLOR_SENSITIVITY
-            for (var i = 0; i < predictions.length; i++) {
-                for (var j = 0; j < predictions[0].length; j++) {
-                    // Even spaces always light, unless the previous check failed
-                    var color = ["light", "dark"][(((i + j) % 2) + !matches) % 2]
-                    predictions[i][j].board_color = color
-                }
-            }
-            // TODO: Automatically advance if pattern doesn't seem to line up
-            console.log(matching_cnt)
-            var threshold_drawing = threshold.clone()
-            cv.cvtColor(threshold_drawing, threshold_drawing, cv.COLOR_GRAY2RGBA)
-            drawCorners(threshold_drawing, corners, "threshold", tl_rect.x, tl_rect.y)
-
-            */
-            /*
-            var [light_bg, dark_bg] = find_backgrounds(full, predictions)
-            find_highlights([light_bg, dark_bg], full, predictions)
-            cv.imshow("debug", light_bg)
-            cv.imshow("debug2", dark_bg)
-            */
             var light_empty_highlights = find_highlighted_empty_squares(full, predictions, "light")
             var dark_empty_highlights = find_highlighted_empty_squares(full, predictions, "dark")
             var highlights = [light_empty_highlights, dark_empty_highlights].flat()
-            // Only keep going if we don't have the maximum expected highlights
             var occupied_highlights = find_highlighted_occupied_squares(full, predictions, highlights)
             highlights.push(...occupied_highlights)
             console.log(highlights)
-
-
-
-            // TODO
-            //var guessed_turn = figure_out_turn()
+            generate_fen_suffix(predictions, board, highlights)
         }
 
         async function process_corners(corners_list, full, grayscale, board) {
@@ -826,7 +580,7 @@
             var horiz = choose_lines_near(lines, Math.PI / 2, height)
             var vert = choose_lines_near(lines, 0, width)
             drawLines(full, [vert, horiz], 'filtered_lines', width, height, [RED, GREEN])
-            var corners_list = Array.from(most_likely_bounding_box_new(horiz, vert))
+            var corners_list = Array.from(most_likely_bounding_box(horiz, vert))
             process_corners(corners_list, full, grayscale, board)
             console.log("done init")
         }
