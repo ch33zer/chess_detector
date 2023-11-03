@@ -4,16 +4,196 @@
 		"selected_items":
 		[
 			[
+				"data",
+				"data32S"
+			],
+			[
+				"HIGH",
+				"HIGHLIGHT_INTERVAL"
+			],
+			[
+				"empty",
+				"empty_highlights"
+			],
+			[
+				"high",
+				"highlighted_empty_coords"
+			],
+			[
+				"domin",
+				"dominant_colors_from_board"
+			],
+			[
+				"emp",
+				"empty_highlights"
+			],
+			[
+				"light",
+				"light_empty_highlights"
+			],
+			[
+				"least_",
+				"least_common_index"
+			],
+			[
+				"square_rg",
+				"square_rgb_floats"
+			],
+			[
+				"CV_32F",
+				"CV_32FC3"
+			],
+			[
+				"mask",
+				"mask_contents"
+			],
+			[
+				"COLOR",
+				"COLOR_RGB2RGBA"
+			],
+			[
+				"predi",
+				"prediction"
+			],
+			[
+				"CV_U8",
+				"CV_8UC4"
+			],
+			[
+				"CV_32",
+				"CV_32FC3"
+			],
+			[
+				"square",
+				"square_roi"
+			],
+			[
+				"dark",
+				"dark_segmentor"
+			],
+			[
+				"board_color",
+				"board_color_index"
+			],
+			[
+				"mat",
+				"matches"
+			],
+			[
+				"seem",
+				"seems_to_match_pattern"
+			],
+			[
+				"tran",
+				"translate_y"
+			],
+			[
+				"trans",
+				"translate_x"
+			],
+			[
+				"board",
+				"board_tl_y"
+			],
+			[
+				"l",
+				"length"
+			],
+			[
+				"gamm",
+				"gamma_func"
+			],
+			[
+				"classi",
+				"classify_pieces"
+			],
+			[
+				"proce",
+				"process_corners"
+			],
+			[
+				"Get",
+				"getElementById"
+			],
+			[
+				"corners_m",
+				"corners_mine_gen"
+			],
+			[
+				"horiz",
+				"horiz_bounds"
+			],
+			[
+				"tens",
+				"tensorboard_callback"
+			],
+			[
+				"indic",
+				"indicesArr"
+			],
+			[
+				"nor",
+				"normalized_val_ds"
+			],
+			[
+				"num",
+				"num_classes"
+			],
+			[
+				"base",
+				"basename_no_extn"
+			],
+			[
+				"off",
+				"offset_x"
+			],
+			[
+				"intersect",
+				"intersection_y"
+			],
+			[
+				"target",
+				"target_matches"
+			],
+			[
+				"match",
+				"matching_bounds"
+			],
+			[
+				"corner_dr",
+				"corner_drawing_mine"
+			],
+			[
+				"intersec",
+				"intersection_y"
+			],
+			[
+				"inter",
+				"intersection_y"
+			],
+			[
+				"hori",
+				"horiz_bounds"
+			],
+			[
+				"found",
+				"found_box_size"
+			],
+			[
+				"corn",
+				"corner_drawing"
+			],
+			[
+				"corner",
+				"corner_drawing"
+			],
+			[
 				"principals",
 				"principals_file"
 			],
 			[
 				"basics_F",
 				"BASICS_FILE"
-			],
-			[
-				"target",
-				"target_note_id"
 			],
 			[
 				"create",
@@ -32,12 +212,68 @@
 	"buffers":
 	[
 		{
-			"file": "chess_detector.js",
+			"file": "chess_detector_transfer.html",
 			"settings":
 			{
-				"buffer_size": 0,
+				"buffer_size": 28023,
 				"encoding": "UTF-8",
 				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "                     True (color = light)  False (color = dark)\nTrue  (blk > white)     false                   true\nFalse (blk < white)     true                    false",
+			"settings":
+			{
+				"buffer_size": 170,
+				"line_ending": "Unix",
+				"name": "True (color = light)  False ("
+			}
+		},
+		{
+			"file": "piece_model/modeljs/model.json",
+			"settings":
+			{
+				"buffer_size": 103231,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "piece_model/train_transfer.py",
+			"settings":
+			{
+				"buffer_size": 4974,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "piece_model/gen_samples.py",
+			"settings":
+			{
+				"buffer_size": 8491,
+				"encoding": "UTF-8",
+				"line_ending": "Unix",
+				"name": "gen_samples.py"
+			}
+		},
+		{
+			"file": "chess_urls",
+			"settings":
+			{
+				"buffer_size": 2337,
+				"encoding": "UTF-8",
+				"line_ending": "Unix",
+				"name": "https://images.chesscomfiles.com/chess-themes/piec"
+			}
+		},
+		{
+			"contents": "0 1 2 3 4\n0 1 2 -2 -1",
+			"settings":
+			{
+				"buffer_size": 21,
+				"line_ending": "Unix",
+				"name": "0 1 2 3 4"
 			}
 		}
 	],
@@ -52,6 +288,22 @@
 		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"indent",
+				"Indentation: Reindent Lines"
+			],
+			[
+				"pretty",
+				"Pretty JSON: Format (Pretty Print) JSON"
+			],
+			[
+				"package control: install",
+				"Package Control: Install Package"
+			],
+			[
+				"packag",
+				"Install Package Control"
+			],
 			[
 				"install",
 				"Package Control: Install Package"
@@ -77,10 +329,21 @@
 	},
 	"expanded_folders":
 	[
-		"/Users/watsond/prog/chess_detector"
+		"/Users/blaise/prog/chess_detector",
+		"/Users/blaise/prog/chess_detector/chessboardjs-1.0.0",
+		"/Users/blaise/prog/chess_detector/chessboardjs-1.0.0/css",
+		"/Users/blaise/prog/chess_detector/testdata"
 	],
 	"file_history":
 	[
+		"/Users/blaise/prog/chess_detector/chess_detector_opencv.html",
+		"/Users/blaise/prog/chess_detector/piece_model/gen_samples.sh",
+		"/Users/blaise/prog/chess_detector/piece_model/chess_detector_transfer.html",
+		"/Users/blaise/prog/chess_detector/piece_model/train.py",
+		"/Users/blaise/prog/chess_detector/piece_model/modeljs/model.json",
+		"/Users/blaise/prog/chess_detector/piece_model/gen_samples.py",
+		"/Users/blaise/prog/chess_detector/chess_detector.html",
+		"/Users/blaise/prog/chess_detector/chess_detector.js",
 		"/Users/watsond/prog/imdb/best_crew.py",
 		"/Users/watsond/prog/transitive_dice.prolog",
 		"/Users/watsond/prog/ludum/ludum.sublime-project",
@@ -89,7 +352,7 @@
 	],
 	"find":
 	{
-		"height": 39.0
+		"height": 24.0
 	},
 	"find_in_files":
 	{
@@ -103,15 +366,96 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"BOARD_COLOR_SENSITIVITY",
+			"BLUR_SIZE",
+			"BOX_TOLERANCE",
+			"has_matching_bounds",
+			"DEBUG",
+			"check_spacing",
+			"most_likely_bounding_box",
+			"is_likely_empty",
+			"guess_fen_suffix",
+			"predictions_to_fen_stem",
+			"i2boardindex",
+			"i2coord",
+			"get_mask_contents",
+			"BLUR_ROUNDS",
+			"find_backgrounds",
+			"HIGHLIGHT_SENSITIVITY",
+			"find_highlights",
+			"process_corners",
+			"choose_lines_near",
+			"dominant_colors_from_board",
+			"convertTo",
+			"convertto",
+			"            }",
+			"convertTo",
+			"BLUR_SIZE",
+			".data",
+			"classify_pieces",
+			"drawCorners",
+			"guess_fen_suffix",
+			"corners_min",
+			"mine",
+			"debug",
+			"empty_c",
+			"rect",
+			"process_corners",
+			"classify_pieces",
+			"debug",
+			"Functional",
+			"draw_x",
+			"process",
+			"init",
+			"Functional",
+			"callbacks",
+			"Functional",
+			"64",
+			"Functional",
+			"drawLines",
+			"Functional",
+			"64",
+			"Functional",
+			"functional",
+			"64",
+			"IMG_SHAPE",
+			"img_heigh",
+			" -mattecolor $color +matte",
+			"copy",
+			"Size",
+			"Size(",
+			"foreach",
+			"val_ds",
+			"train_data",
+			"categorical",
+			"binary",
+			"flip",
+			"await",
+			"val_ds",
+			"\")\"\n",
+			"math",
+			" ",
+			"32fc2",
+			"DEBUG",
+			"rows",
+			"let",
+			"ret",
+			"4",
 			"film",
 			"writer"
 		],
 		"highlight": true,
 		"in_selection": false,
 		"preserve_case": false,
-		"regex": true,
+		"regex": false,
 		"replace_history":
 		[
+			"Model",
+			"96",
+			"Model",
+			"96",
+			"\\n",
+			"var"
 		],
 		"reverse": false,
 		"show_context": true,
@@ -127,11 +471,190 @@
 			[
 				{
 					"buffer": 0,
-					"file": "chess_detector.js",
+					"file": "chess_detector_transfer.html",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 0,
+						"buffer_size": 28023,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								23523,
+								23523
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/HTML/HTML.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3920.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"file": "testdata/naro.png",
+					"semi_transient": true,
+					"stack_index": 1,
+					"type": "image"
+				},
+				{
+					"buffer": 1,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 170,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								11,
+								11
+							]
+						],
+						"settings":
+						{
+							"auto_name": "True (color = light)  False (",
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "piece_model/modeljs/model.json",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 103231,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								103231,
+								103231
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JSON.sublime-syntax"
+						},
+						"translation.x": 712.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "piece_model/train_transfer.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4974,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2655,
+								2655
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "piece_model/gen_samples.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 8491,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2124,
+								2124
+							]
+						],
+						"settings":
+						{
+							"auto_name": "gen_samples.py",
+							"syntax": "Packages/Python/Python.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "chess_urls",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2337,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1519,
+								1519
+							]
+						],
+						"settings":
+						{
+							"auto_name": "https://images.chesscomfiles.com/chess-themes/piec",
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 21,
 						"regions":
 						{
 						},
@@ -139,18 +662,19 @@
 						[
 							[
 								0,
-								0
+								21
 							]
 						],
 						"settings":
 						{
-							"syntax": "Packages/JavaScript/JavaScript.sublime-syntax"
+							"auto_name": "0 1 2 3 4",
+							"syntax": "Packages/Text/Plain text.tmLanguage"
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 0,
+					"stack_index": 6,
 					"type": "text"
 				}
 			]
@@ -162,7 +686,7 @@
 	},
 	"input":
 	{
-		"height": 0.0
+		"height": 36.0
 	},
 	"layout":
 	{
@@ -233,7 +757,7 @@
 	"show_open_files": true,
 	"show_tabs": true,
 	"side_bar_visible": true,
-	"side_bar_width": 150.0,
+	"side_bar_width": 279.0,
 	"status_bar_visible": true,
 	"template_settings":
 	{
