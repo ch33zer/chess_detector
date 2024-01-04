@@ -19,8 +19,19 @@
             image-rendering: optimize-contrast;         /* CSS3 Proposed       */
             -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
         }
+        h3 {
+            color: white
+        }
+        body {
+            background: blue;
+            color: white;
+        }
     </style>
-    <script src="math.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="chessboardjs-1.0.0/css/chessboard-1.0.0.css">
+    <script src="opencv.js" type="text/javascript"></script>
+    <script src="tf.min.js" type="text/javascript"></script>
+    <script src="jquery-3.6.0.min.js" type="text/javascript"></script>
+    <script src="chessboardjs-1.0.0/js/chessboard-1.0.0.js" type="text/javascript"></script>
     <script>
         const WHITE=255
         const BLACK=0
@@ -60,134 +71,576 @@
                 ctx.webkitImageSmoothingEnabled = false
                 ctx.msImageSmoothingEnabled = false
             }
-
         }
-        function make_gaussian(sigma, k) {
-            var columns = []
-            for (var i = 0; i < 2 * k + 1; i++) {
-                column = []
-                for (var j = 0; j < 2 * k + 1; j++) {
-                    column.push((i - k) ** 2 + (j - k) ** 2)
+        function drawLines(full, lines_array, canvas_name, width, height, colors = [255, 0, 0, 255]) {
+            var offset = Math.max(height, width)
+            var dst = new cv.Mat()
+            cv.cvtColor(full, dst, cv.COLOR_RGBA2RGB, 0)
+            if (!(lines_array instanceof Array)) {
+                lines_array = [lines_array]
+            } 
+
+            for (var line_i = 0; line_i < lines_array.length; ++line_i) {
+                var lines = lines_array[line_i]
+                let color
+                if (colors[0] instanceof Array) {
+                    color = colors[line_i % colors.length]
+                } else {
+                    color = colors
                 }
-                columns.push(column)
-            }
-            columns = math.divide(columns, -2 * sigma ** 2)
-
-            columns = math.exp(columns)
-
-            columns = math.multiply(columns, 1 / (2 * math.pi * sigma **2))
-
-            return columns
-        }
-        function sobel(image_data_mat, width, height) {
-            var ret = math.zeros(height, width)
-            var Y = math.matrix([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-            var X = math.matrix([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
-            console.log(X)
-            console.log(Y)
-            for (var i = 0; i < width; i++) {
-                for (var j = 0; j < height; j++) {
-                    if (i == 0 || i == width -1 || j == 0 || j == height -1) {
-                        ret.set([j,i], GRAY) 
-                        continue
-                    }
-                    var vals_mat = math.subset(image_data_mat, math.index([j+1, j, j-1], [i+1, i, i-1]))
-                    var gradient_x = math.sum(math.dotMultiply(X, vals_mat))
-                    var gradient_y = math.sum(math.dotMultiply(Y, vals_mat))
-
-                    var color = GRAY
-                    const threshold = 3
-                    if (math.abs(gradient_y) > threshold * math.abs(gradient_x)) {
-                        // Horizontal?
-                        color = BLACK
-                    } else if (math.abs(gradient_x) > threshold * math.abs(gradient_y)) {
-                        // Vertical?
-                        color = WHITE
-                    }
-                    ret.set([j, i], color)
+                for (var i = 0; i < lines.rows; ++i) {
+                    var rho = lines.data32F[i * 2]
+                    var theta = lines.data32F[i * 2 + 1]
+                    var a = Math.cos(theta)
+                    var b = Math.sin(theta)
+                    var x0 = a * rho
+                    var y0 = b * rho
+                    var random_offset = Math.random() * Math.min(width, height)
+                    var startPoint = {x: x0 - offset * b, y: y0 + offset * a}
+                    var endPoint = {x: x0 + offset * b, y: y0 - offset * a}
+                    cv.line(dst, startPoint, endPoint, color)
+                    cv.putText(dst, "(" + i + "," + rho + ")", {x:x0 + random_offset * b, y:y0+30 + random_offset * a}, cv.FONT_HERSHEY_SIMPLEX, 1, color)
                 }
             }
-            return ret
+            cv.imshow(canvas_name, dst)
+            dst.delete()
         }
-        const INTERSECTION_TOLERANCE = 3
-        function pick_intersections(edges_mat, width, height) {
-            var ret = math.zeros(height, width)
-            for (var i = 0; i < width; i++) {
-                for (var j = 0; j < height; j++) {
-                    if (i < INTERSECTION_TOLERANCE || i >= width - INTERSECTION_TOLERANCE || j < INTERSECTION_TOLERANCE || j >= height - INTERSECTION_TOLERANCE) {
-                        ret.set([j,i], GRAY) 
+
+        function drawCorners(full, corners, canvas_name, translate_x=0, translate_y = 0) {
+            var dst = new cv.Mat()
+            cv.cvtColor(full, dst, cv.COLOR_RGBA2RGB, 0)
+            var prev = null
+            for (var i = 0; i < corners.rows; ++i) {
+                var x = corners.data32F[i * 2] - translate_x
+                var y = corners.data32F[i * 2 + 1] - translate_y
+                var curr = {x: x, y: y}
+                cv.circle(dst, curr, 5, GREEN, cv.FILLED)
+                cv.putText(dst, "(" + x + "," + y + ")", {x:x - 160, y:y}, cv.FONT_HERSHEY_SIMPLEX, 1, BLUE)
+                if (prev !== null) {
+                    cv.line(dst, prev, curr, RED)
+                }
+                prev = curr
+            }
+            cv.imshow(canvas_name, dst)
+            dst.delete()
+        }
+
+        const ANGLE_THRESH = Math.PI/180
+        function choose_lines_near(lines, ang, max, thresh) {
+            var ret = []
+            thresh = thresh || ANGLE_THRESH
+            for (var i = 0; i < lines.rows; ++i) {
+                var rho = lines.data32F[i * 2]
+                var theta = lines.data32F[i*2 + 1]
+                if (ang + thresh >= theta && ang - thresh <= theta) {
+                    ret.push([rho, theta])
+                }
+            }
+            ret.sort((first, second) => first[0] - second[0])
+            // Push image boundaries as lines too
+            if (ret.length > 0) {
+                if (ret[0][0] != 0) {
+                    ret.unshift([0, ang])
+                }
+                if (ret[ret.length-1][0] != max - 1) {
+                    ret.push([max - 1, ang])
+                }
+            }
+            return cv.matFromArray(ret.length, 2, cv.CV_32F, ret.flat())
+        }
+        const BOX_TOLERANCE = 4; // Pixels
+        const TARGET_BOXES = 8
+        const MIN_BOX_SIZE = 30
+        function make_delta_map(lines) {
+            var ret = new Map()
+            for (var i = 0; i < lines.rows; ++i) {
+                var i_rho = lines.data32F[i * 2]
+                var i_theta = lines.data32F[i*2 + 1]
+                for (var j = i+1; j < lines.rows; ++j) {
+                    var j_rho = lines.data32F[j * 2]
+                    var j_theta = lines.data32F[j*2 + 1]
+                    var diff = j_rho - i_rho
+                    if (diff < MIN_BOX_SIZE - BOX_TOLERANCE) {
                         continue
                     }
-                    var vals_mat = math.subset(edges_mat, math.index(math.range(j-INTERSECTION_TOLERANCE, j+INTERSECTION_TOLERANCE), math.range(i-INTERSECTION_TOLERANCE, i+INTERSECTION_TOLERANCE)))
-                    var horizontals = 0;
-                    var verticals = 0
-                    function count_edges(val, idx) {
-                        if (val == BLACK) {
-                            horizontals++
-                        } 
-                        else if (val == WHITE) {
-                            verticals++
+                    if (!ret.has(diff)) {
+                        ret.set(diff, new Map())
+                    }
+                    ret.get(diff).set(i, j)
+                }
+            }
+            // Sort by key value to make debugging easier
+            return new Map([...ret.entries()].sort((e1, e2) => e1[0] - e2[0]))
+        }
+        function check_spacing(delta_map, target_spacing, from, found_matches, target_matches, ctx) {
+            if (found_matches > 3) {
+                console.log(...arguments)
+            }
+            if (found_matches == target_matches -1) {
+                return [from]
+            }
+            for (var i = -1; i < BOX_TOLERANCE * 2; i++) {
+                var box_size = target_spacing + (i >= BOX_TOLERANCE ? -1 : 1) * (i % BOX_TOLERANCE + 1)
+                var dist_map = delta_map.get(box_size)
+                if (dist_map === undefined) {
+                    continue
+                }
+                var to = dist_map.get(from)
+                if (to === undefined) {
+                    continue
+                }
+                var rest = check_spacing(delta_map, target_spacing, to, found_matches + 1, target_matches, Array.prototype.concat(ctx, [[from, to]]))
+                if (rest.length > 0) {
+                    rest.push(from)
+                    return rest
+                }
+            }
+            return []
+        }
+        function* find_equal_spacings(delta_map) {
+            for (const [delta, dist_map] of delta_map) {
+                if (delta < MIN_BOX_SIZE - BOX_TOLERANCE) {
+                    continue
+                }
+                for (const [from, to] of dist_map) {
+                    var idxes = check_spacing(delta_map, delta, from, 0, TARGET_BOXES + 1, [])
+                    if (idxes.length > 0) {
+                        idxes.reverse()
+                        console.log("Found", idxes)
+                        yield idxes
+                    }
+                }
+            }
+        }
+        function* most_likely_bounding_box(horiz, vert) {
+            var delta_map_vert = make_delta_map(vert)
+            var delta_map_horiz = make_delta_map(horiz)
+            var all_vert_bounds = Array.from(find_equal_spacings(delta_map_vert))
+            if (all_vert_bounds.length == 0) {
+                console.log("No vert bounds")
+            }
+            var all_horiz_bounds = Array.from(find_equal_spacings(delta_map_horiz))
+            if (all_horiz_bounds.length == 0) {
+                console.log("No horiz bounds")
+            }
+            for (var vert_bounds of all_vert_bounds) {
+                for (var horiz_bounds of all_horiz_bounds) {
+                    var out = []
+                    for (horiz_idx of horiz_bounds) {
+                        var horiz_rho = horiz.data32F[horiz_idx * 2]
+                        var horiz_theta = horiz.data32F[horiz_idx * 2 + 1]
+                        for (vert_idx of vert_bounds) {
+                            var vert_rho = vert.data32F[vert_idx * 2]
+                            var vert_theta = vert.data32F[vert_idx * 2 + 1]
+                            var intersection_y = horiz_rho
+                            var intersection_x = vert_rho
+                            out.push([intersection_x, intersection_y])
                         }
                     }
-                    math.forEach(vals_mat, count_edges)
-                    if (horizontals >= 2* INTERSECTION_TOLERANCE && verticals >= 2* INTERSECTION_TOLERANCE) {
-                        ret.set([j,i], BLACK)
+                    console.log(out);
+                    yield cv.matFromArray(out.length, 2, cv.CV_32F, out.flat())
+                }
+            }
+        }
+        const SENSITIVITY=.9
+        function is_likely_empty(img) {
+            var color_hist = new Map();
+            for (var i = 0; i < img.rows; i++) {
+                for (var j = 0; j < img.cols; j++) {
+                    let pixel = img.ucharPtr(i, j);
+                    let R = Math.round(pixel[0] / 51);
+                    let G = Math.round(pixel[1] / 51);
+                    let B = Math.round(pixel[2] / 51);
+                    let key = `${R},${G},${B}`
+                    if (!color_hist.has(key)) {
+                        color_hist.set(key, 0)
+                    }
+                    color_hist.set(key, color_hist.get(key) + 1)
+                }
+            }
+            for (const [key, value] of color_hist) {
+                if (value >= (SENSITIVITY * img.rows * img.cols)) {
+                    return true
+                }
+            }
+            return false
+        }
+        function predictions_to_fen_stem(predictions) {
+            var class2fen={
+                'nothing': 'nothing',
+                'bb': 'b',
+                'bk': 'k',
+                'bn': 'n',
+                'bp': 'p',
+                'bq': 'q',
+                'br': 'r',
+                'wb': 'B',
+                'wk': 'K',
+                'wn': 'N',
+                'wp': 'P',
+                'wq': 'Q',
+                'wr': 'R',
+            }
+            var fen = "";
+            for (var i = 0; i < predictions.length; i++) {
+                var empty_count = 0;
+                var finalize_empty_runs = () => {
+                    if (empty_count > 0) {
+                        fen += `${empty_count}`
+                        empty_count = 0
+                    }
+                }
+                for (var j = 0; j < predictions[i].length; j++) {
+                    var found = predictions[i][j];
+                    var fen_piece = class2fen[found.classification]
+                    if (fen_piece == "nothing") {
+                        empty_count += 1
                     } else {
-                        ret.set([j,i], GRAY)
+                        finalize_empty_runs()
+                        fen += fen_piece
+                    }
+                }
+                finalize_empty_runs()
+                if (i < predictions.length - 1) {
+                    fen += '/'
+                }
+            }
+            return fen
+        }
+        BOARD_COLORS=['light', 'dark']
+        async function classify_pieces(corners, full, board) {
+            var names=['bb', 'bk', 'bn', 'bp', 'bq', 'br', 'nothing', 'wb', 'wk', 'wn', 'wp', 'wq', 'wr']
+            var full_rgb = new cv.Mat()
+            var size=new cv.Size(96,96)
+            cv.cvtColor(full, full_rgb, cv.COLOR_RGBA2RGB, 0)
+            var display = full_rgb.clone()
+
+            var predictions = [[],[],[],[],[],[],[],[]]
+            for (var i = 0; i < corners.rows - (TARGET_BOXES + 1); i++) {
+                var prediction_row = Math.floor(i/(TARGET_BOXES + 1))
+                if (i % (TARGET_BOXES + 1) == TARGET_BOXES) {
+                    continue
+                }
+                var board_x = i % (TARGET_BOXES + 1)
+                var board_y = Math.floor(i / (TARGET_BOXES + 1))
+                var tl_x = corners.data32F[i*2]
+                var tl_y = corners.data32F[i*2 + 1]
+                var tr_x = corners.data32F[(i+1)*2]
+                var j = i + TARGET_BOXES + 1
+                var bl_y = corners.data32F[j*2 + 1]
+                var width = tr_x - tl_x
+                var height = bl_y - tl_y
+                var rect = {x: tl_x, y: tl_y, width: width, height: height}
+                var img = full_rgb.roi(rect)
+                if (is_likely_empty(img)) {
+                    predictions[prediction_row].push({
+                        classification:"nothing",
+                        board_color:BOARD_COLORS[i%2],
+                        board_position: {x: board_x, y: board_y},
+                        method:"shortcut",
+                        conf:0,
+                        rect:rect,
+                        second:null,
+                        second_conf:null})
+                    continue
+                }
+                // I believe that this resize actually allocates a new array which means that our use of data below is safe, but that could be wrong.
+                cv.resize(img, img, size, 0, 0, cv.INTER_AREA)
+                var float_img = new cv.Mat(img.rows, img.cols, cv.CV_32FC3)
+                for (var j = 0; j < img.data.length; j++) {
+                    float_img.data32F[j] = (img.data[j] / 127.5) - 1.0
+                }
+                var tensor = tf.tensor(float_img.data32F, [1,96,96,3], 'float32')
+                var res = model.predict(tensor, {batchSize: 1, verbose: true})
+                const {values, indices} = tf.topk(res, 2, true);
+                const valuesArr = await values.data();
+                const indicesArr = await indices.data();
+                console.log(i, valuesArr[0], indicesArr[0], names[indicesArr[0]])
+                console.log(i, valuesArr[1], indicesArr[1], names[indicesArr[1]])
+                cv.putText(display, names[indicesArr[0]] + " " +valuesArr[0].toPrecision(2), {x:tl_x + width/2 -40, y:tl_y + height / 2}, cv.FONT_HERSHEY_SIMPLEX, 1, GREEN)
+                var most_likely_classification = names[indicesArr[0]]
+                predictions[prediction_row].push({
+                        classification:most_likely_classification,
+                        board_color:BOARD_COLORS[i%2],
+                        board_position: {x: board_x, y: board_y},
+                        method:"model",
+                        conf:valuesArr[0],
+                        rect:rect,
+                        second:names[indicesArr[1]],
+                        second_conf:valuesArr[1]})
+            }
+            cv.imshow('classifications', display)
+            return predictions
+        }
+        function dominant_colors_from_board(full, rect, k, min_fraction) {
+            var square_roi = full.roi(rect)
+            var square_rgb = new cv.Mat()
+            cv.cvtColor(square_roi, square_rgb, cv.COLOR_RGBA2RGB)
+            var square_hsv = new cv.Mat()
+            cv.cvtColor(square_rgb, square_hsv, cv.COLOR_RGB2HSV)
+            var square_hsv_floats = new cv.Mat()
+            square_hsv.convertTo(square_hsv_floats, cv.CV_32FC3)
+            var color_arr = square_hsv_floats.reshape(0, square_hsv_floats.total())
+            var term_criteria = new cv.TermCriteria(cv.TermCriteria_EPS + cv.TermCriteria_MAX_ITER, 10, 1.0)
+            var best_labels = new cv.Mat()
+            var centers = new cv.Mat()
+            var compactness = cv.kmeans(color_arr, k, best_labels, term_criteria, 3, cv.KMEANS_RANDOM_CENTERS, centers)
+            var counts = new Map()
+            for (var i = 0; i < best_labels.rows; i++) {
+                var label = best_labels.data32S[i]
+                if (!counts.has(label)) {
+                    counts.set(label, 0)
+                }
+                counts.set(label, counts.get(label) + 1)
+            }
+            for (var i = 0; i < centers.rows; i++) {
+                if (counts.get(i) / best_labels.rows < min_fraction) {
+                    centers.data32F[i * 3] = 2147483647
+                    centers.data32F[i * 3 + 1] = 2147483647
+                    centers.data32F[i * 3 + 2] = 2147483647
+                }
+            }
+            square_roi.delete()
+            square_rgb.delete()
+            square_hsv.delete()
+            square_hsv_floats.delete()
+            color_arr.delete()
+            best_labels.delete()
+            return centers
+        }
+        function color_dist(a_arr, a_index, z_arr, z_index) {
+            if (a_arr.type() != cv.CV_32FC1 || z_arr.type() != cv.CV_32FC1) {
+                console.log("wrong type to color_dist:", a_arr.type(), z_arr.type());
+                return Infinity
+            }
+            return Math.sqrt((a_arr.data32F[a_index] - z_arr.data32F[z_index]) ** 2 + (a_arr.data32F[a_index + 1] - z_arr.data32F[z_index + 1]) ** 2 + (a_arr.data32F[a_index + 2] - z_arr.data32F[z_index + 2]) ** 2)
+        }
+        function find_highlighted_empty_squares(full, predictions, board_color) {
+            var dominant_colors_arr = []
+            for (var i=0; i < predictions.length; i++) {
+                for (var j=0; j < predictions[i].length; j++) {
+                    let prediction = predictions[i][j]
+                    if (prediction.classification != "nothing") {
+                        continue
+                    }
+                    if (prediction.board_color != board_color) {
+                        continue
+                    }
+                    var dominant_color = dominant_colors_from_board(full, prediction.rect, 1, 0)
+                    dominant_colors_arr.push({centers: dominant_color, coords: {y: i, x: j}})
+                }
+            }
+            var dominant_colors = new cv.Mat(dominant_colors_arr.length, 1, cv.CV_32FC3)
+            var i = 0;
+            for (let color of dominant_colors_arr) {
+                dominant_colors.data32F[i] = color.centers.data32F[0]
+                dominant_colors.data32F[i+1] = color.centers.data32F[1]
+                dominant_colors.data32F[i+2] = color.centers.data32F[2]
+                i+=3
+            }
+            var term_criteria = new cv.TermCriteria(cv.TermCriteria_EPS + cv.TermCriteria_MAX_ITER, 10, 1.0)
+            let means = 2;
+            let highlighted = []
+            // Only search for highlights twice (2 or 3 means). Anything more is likely just empty.
+            while (means < 4) {
+                var best_labels = new cv.Mat()
+                var centers = new cv.Mat()
+                var compactness = cv.kmeans(dominant_colors, means, best_labels, term_criteria, 3, cv.KMEANS_RANDOM_CENTERS, centers)
+                var counts = new Array(means);
+                best_labels.data32S.forEach(element => counts[element] === undefined ? counts[element] = 1 : counts[element]++)
+                var least_common = Infinity;
+                var least_common_index;
+                counts.forEach((element, index) => {
+                    if (element < least_common) {
+                        least_common = element;
+                        least_common_index = index
+                    }
+                })
+                if (means == 2) {
+                    var arr = centers.data32F
+                    var dist = color_dist(centers, 0, centers, 3)
+                    if (dist < 3) {
+                        break
+                    }
+                }
+                if (least_common > 2) {
+                    means++
+                    continue
+                }
+                best_labels.data32S.forEach((element, index) => {
+                    if (element == least_common_index) {
+                        highlighted.push(dominant_colors_arr[index].coords)
+                    }
+                })
+                break;
+            }
+            return highlighted
+        }
+        function find_highlighted_occupied_squares(full, predictions, empty_highlights) {
+            if (empty_highlights.length != 1) {
+                // Don't handle cases where there's 0 or >1 highlights. If 0, we don't have any colors to try to match. If > 1 then presumably all highlights found.
+                return []
+            }
+            var highlighted_prediction = predictions[empty_highlights[0].y][empty_highlights[0].x]
+            var highlighted_empty_color = dominant_colors_from_board(full, highlighted_prediction.rect, 1, 0)
+            var min = Infinity
+            var coord;
+            for (var i=0; i < predictions.length; i++) {
+                for (var j=0; j < predictions[i].length; j++) {
+                    let prediction = predictions[i][j]
+                    if (prediction.classification === "nothing") {
+                        continue
+                    }
+                    // Just find a couple means, then see if any match
+                    var dominant_colors = dominant_colors_from_board(full, prediction.rect, 4, .25)
+                    for (var k = 0; k < dominant_colors.rows; k++) {
+                        var dist = color_dist(highlighted_empty_color, 0, dominant_colors, k * 3)
+                        if (dist < min) {
+                            min = dist
+                            coord = {y:i, x: j}
+                        }
                     }
                 }
             }
-            return ret
+            if (min < 150) {
+                return [coord];
+            }
+            return []
         }
+        function generate_fen_suffix(predictions, board, highlights) {
+            // TODO
+            var to_move = null;
+            for (let highlight of highlights) {
+                var pred = predictions[highlight.y][highlight.x]
+                if (pred.classification != "nothing") {
+
+                }
+
+            }
+        }
+        async function classify_and_display(corners, full, grayscale, board) {
+            var predictions = await classify_pieces(corners, full, board).catch(console.error)
+            console.log(predictions)
+            if (predictions.flat().length == 0) {
+                return
+            }
+            var fen_stem = predictions_to_fen_stem(predictions)
+            console.log(fen_stem)
+            board.position(fen_stem)
+            var tl_rect = predictions[0][0].rect
+            var br_rect = predictions[predictions.length - 1][predictions[0].length -1].rect
+            var entire_board = {x: tl_rect.x, y: tl_rect.y, width: br_rect.x + br_rect.width - tl_rect.x, height: br_rect.y + br_rect.height - tl_rect.y}
+            var board_only = grayscale.roi(entire_board)
+            var light_empty_highlights = find_highlighted_empty_squares(full, predictions, "light")
+            var dark_empty_highlights = find_highlighted_empty_squares(full, predictions, "dark")
+            var highlights = [light_empty_highlights, dark_empty_highlights].flat()
+            var occupied_highlights = find_highlighted_occupied_squares(full, predictions, highlights)
+            highlights.push(...occupied_highlights)
+            console.log(highlights)
+            generate_fen_suffix(predictions, board, highlights)
+        }
+
+        async function process_corners(corners_list, full, grayscale, board) {
+            for (var corners of corners_list) {
+                drawCorners(full, corners, "corners")
+                console.log(corners);
+                classify_and_display(corners, full, grayscale, board)
+                if (corners_list.length == 1) {
+                    return
+                }
+                var _resolve;
+                var clicked = new Promise((resolve) => _resolve = resolve);
+                document.getElementById("next").style.display = "inline-block"
+                document.getElementById("next").onclick = () => _resolve(true)
+                await clicked
+            }
+        }
+        function handleNewImage(event) {
+            const input = event.target;
+            const preview = document.getElementById('input');
+
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.addEventListener(
+                    "load",
+                    () => {
+                      preview.src = reader.result;
+                      setTimeout(init, 100)
+                  },
+                  false,
+                  );
+
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        const [RED, GREEN, BLUE] = [[255,0,0,255], [0,255,0,255], [0,0,255,255]]
         function init() {
+            var board = Chessboard('board', {
+                pieceTheme: 'chessboardjs-1.0.0/img/chesspieces/wikipedia/{piece}.png',
+            });
             var img = document.getElementById("input")
             resize_canvases(img)
             disable_smoothing()
-            var canvas = document.getElementById("canvas")
-            var width = canvas.width
-            var height = canvas.height
+            var width = img.width
+            var height = img.height
             console.log(width, height)
-            var context = canvas.getContext('2d')
-            context.drawImage(img, 0, 0)
-            var image_data = context.getImageData(0, 0, width, height)
-            var image_data_mat = math.ones(height, width)
-            for (var i = 0; i < image_data.data.length; i += 4) {
-                var x = (i/4) % width
-                var y = math.floor((i/4)/width)
-                var red = image_data.data[i]
-                var green = image_data.data[i + 1]
-                var blue = image_data.data[i + 2]
-                var alpha = image_data.data[i + 3]
-                // https://www.dynamsoft.com/blog/insights/image-processing/image-processing-101-color-space-conversion/
-                var grayscale = (.299 * red + .587 * green + .114 * blue)
-                for (var dest = i; dest < i + 3; dest++) {
-                    image_data.data[dest] = grayscale
-                }
-                image_data_mat.set([y, x], grayscale)
-            }
-            console.log(image_data_mat)
-            set_canvas_data("grayscale", image_data)
-
-            var edges = sobel(image_data_mat, width, height)
-            console.log(edges)
-            set_canvas_data_from_mat("edges", edges, width, height)
-            return
-            var corners = pick_intersections(edges, width, height)
-            set_canvas_data_from_mat("corners", corners, width, height)
-
-
-
+            var full = cv.imread(img)
+            var grayscale = new cv.Mat()
+            cv.cvtColor(full, grayscale, cv.COLOR_RGBA2GRAY, 0)
+            cv.imshow('grayscale', grayscale)
+            var canny = new cv.Mat()
+            cv.Canny(grayscale, canny, 50, 150, 3, true)
+            cv.imshow('edges', canny)
+            var lines = new cv.Mat()
+            cv.HoughLines(canny, lines, 1, Math.PI / 90, 7 * (MIN_BOX_SIZE - BOX_TOLERANCE))
+            drawLines(full, lines, 'lines', width, height)
+            var horiz = choose_lines_near(lines, Math.PI / 2, height)
+            var vert = choose_lines_near(lines, 0, width)
+            drawLines(full, [vert, horiz], 'filtered_lines', width, height, [RED, GREEN])
+            var corners_list = Array.from(most_likely_bounding_box(horiz, vert))
+            process_corners(corners_list, full, grayscale, board)
+            console.log("done init")
         }
-        window.onload = init
+        async function wait_until_loaded() {
+            cv = await cv
+            model = await model
+        }
+        var model = tf.loadLayersModel('piece_model/modeljs/model.json');
+        wait_until_loaded().then(init)
     </script>
 </head>
-<body style="background-color: blue">
-    <img id="input" src="color.png" crossorigin="Anonymous">
+<body>
+    <label for="imageInput">Select an image:</label>
+    <input type="file" id="imageInput" accept="image/*" onchange="handleNewImage(event)">
+    
+    <h3>Input</h3>
+    <img id="input" src="testdata/santa.jpg" crossorigin="Anonymous">
+    <br />
+    <h3>Grayscale</h3>
     <canvas id="grayscale"></canvas>
+    <br />
+    <h3>Edges</h3>
     <canvas id="edges"></canvas>
+    <br />
+    <h3>Lines</h3>
+    <canvas id="lines"></canvas>
+    <br />
+    <h3>Filtered lines</h3>
+    <canvas id="filtered_lines"></canvas>
+    <br />
+    <h3>Corners</h3>
     <canvas id="corners"></canvas>
-    <div>
-        <canvas id="canvas" style="display:none"></canvas>
-    </div>
+    <br />
+    <button id="next" style="display: none;">Next</button>
+    <br />
+    <h3>Classifications</h3>
+    <canvas id="classifications"></canvas>
+    <br />
+    <div id="board" style="width: 400px"></div>
+    <br />
+    <canvas id="debug" hidden></canvas>
+    <br />
+    <canvas id="debug2" hidden></canvas>
 </body>
 </html>
