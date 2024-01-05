@@ -4,7 +4,14 @@
 
 OpenCV/Tensorflow project to detect chessboards in images, then identify the pieces present on the board. The idea was that you could use this to resume streamer/youtuber games on your own in Lichess.
 
+This is entirely client side (ML model, OpenCV, etc), no server at all.
+
 This is only a demo that sometimes works. If you want to do this for real use a commercial solution like [Chessvision.AI](https://chessvision.ai/)
+
+## Use
+
+https://blaise.gg/chess_detector/chess_detector.html
+
 
 ## Operation
 
